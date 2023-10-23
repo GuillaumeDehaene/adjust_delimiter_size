@@ -1,0 +1,138 @@
+---
+title: "adjust_delimiter_size Example"
+filters:
+  - adjust_delimiter_size
+format:
+  pdf:
+    number-sections: true
+    include-in-header:
+      text: |
+        \usepackage{stmaryrd}
+  html:
+    include-in-header:
+      text: |
+        <script>
+        MathJax = {
+            tex: {
+                tags: 'all'  // should be 'ams', 'none', or 'all'
+            }
+        };
+        </script>
+---
+
+This pandoc extension automatically adjusts the size of math delimiters (e.g. parentheses) in PDF and HTML. This is only applied to $-delimited math-mode and not to raw tex.
+
+If left, right delimiters in an expression are unmatched, then this causes a Latex-error. The extension detects this and replaces the equation with an error message.
+
+The Latex expert will note that adding `left, right` commands modifies the spacing of the formula. The extension uses a slight tweak to minimize such issues. Please see @sec-fix.
+
+This extension does not provide a solution for adjustable absolute values or adjustable norms. As far as I know, the best solution is to define a new command:
+
+```latex
+\def\norm#1{\left\Vert #1 \right\Vert} 
+\def\abs#1{\left| #1 \right|}
+```
+
+$$
+\def\norm#1{\left\Vert #1 \right\Vert} 
+\def\abs#1{\left| #1 \right|}
+\cos \norm{V}_{1} = \sum \abs{V_i}
+$$
+
+NB: esthetically, I would rather have the extra space here, instead of applying the fix discussed in @sec-fix.
+
+# Automatic insertion of `\left, \right`
+
+By default, math delimiters do not adjust their size to their content, which produces ugly equations:
+
+<!--
+Raw tex is not handled by the extension!
+Only $-delimited math is parsed by Pandoc as Math
+and this extension applies only to Pandoc-recognized math!
+-->
+\begin{equation}
+( \int f )
+\end{equation}
+
+Latex offers built-in support for automatic sizing: the commands `\left, \right` but these need to be applied manually to operators, producing ugly source code that is also hard to type:
+
+```markdown
+$$
+\left( \int f \right)
+$$
+```
+
+With this filter, all left-delimiters get automatically converted to `\mathopen{} \left LDELIM` and right-delimiters to `\right RDELIM \mathclose{}`. The `mathopen, mathclose` commands a required to fix a spacing issue, see @sec-fix. This conversion is achieved via simple pattern matching and replacement.
+
+The recognized delimiters are:
+```
+LDELIMS:
+  (
+  [
+  \{
+  \langle
+  \lceil
+  \lfloor
+
+RDELIMS:
+  )
+  ]
+  \}
+  \rangle
+  \rceil
+  \rfloor
+```
+
+Only for pdf output, the `stmaryrd` package delimiter pair `\llbracket, \rrbracket` is also automatically converted. As far as I understand, this package cannot be used in MathJax. I have not tested other html math-renderers.
+
+::: {.callout-warning}
+Critically, among the stmaryrd delimiters, only the `llbracket, rrbracket` pair is adjustable. The other `stmaryrd` delimiters do not work with `\left, \right`. I have already lost one hour of my time on this. Let's make sure you don't lose more. 
+:::
+
+## Demo
+
+These are all the delimiters recognized by the extension. For all formulas below, the raw code in this example is the same, besides the content of the delimiters.
+
+$$
+[(\{ \langle \lceil \lfloor    1    \rfloor \rceil \rangle \})]
+$$
+
+$$
+[(\{ \langle \lceil \lfloor    \sum x_i    \rfloor \rceil \rangle \})]
+$$
+
+$$
+[(\{ \langle \lceil \lfloor    \int f    \rfloor \rceil \rangle \})]
+$$
+
+$$
+[(\{ \langle \lceil \lfloor    \frac{1}{2}    \rfloor \rceil \rangle \})]
+$$
+
+$$
+[(\{ \langle \lceil \lfloor    \frac{\int f}{2}    \rfloor \rceil \rangle \})]
+$$
+
+For PDF output, the `stmaryrd` package provides an extra delimiter:
+
+$$
+\llbracket \frac{\int f}{2} \rrbracket
+$$
+
+# Fixing an issue with `\left, \right` {#sec-fix}
+
+By default, `\left, \right` adds extra space.
+
+\begin{align}
+& cos[\frac{cos(\theta)}{2}] \\
+& cos\left[\frac{cos\left(\theta\right)}{2}\right]
+\end{align}
+
+This extension instead uses a [fix sourced from stackexchange](https://tex.stackexchange.com/a/2610). This fix consists in adding extra tex code:
+
+```
+original:                 ( CONTENT )
+after:    \mathopen{}\left( CONTENT \right)\mathclose{}
+```
+
+This removes the extra space both in Latex and MathJax.
